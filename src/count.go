@@ -6,12 +6,14 @@ import (
 
 	"github.com/benpate/convert"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	"github.com/xuri/excelize/v2"
 )
 
 func performCountAudit(session neo4j.SessionWithContext, ctx context.Context) {
 	defer wg.Done()
 	//Node count audit
-	expectedNodeEntitiesCount := expectedNodeEntitiesCount()
+	expectedCountArr := expectedEntitiesCount()
+	expectedNodeEntitiesCount := expectedCountArr[0]
 	currentNodeEntitiesCount := currentNodeEntitiesCount(session, ctx)
 	if expectedNodeEntitiesCount != currentNodeEntitiesCount {
 		fmt.Printf("ERROR : Node Count of %v Doesnt Match the expected count of %v! \n", currentNodeEntitiesCount, expectedNodeEntitiesCount)
@@ -22,7 +24,7 @@ func performCountAudit(session neo4j.SessionWithContext, ctx context.Context) {
 	}
 
 	//location count audit
-	expectedLocationEntitiesCount := expectedLocationEntitiesCount()
+	expectedLocationEntitiesCount := expectedCountArr[1]
 	currentLocationEntitiesCount := currentLocationEntitiesCount(session, ctx)
 	if expectedLocationEntitiesCount != currentLocationEntitiesCount {
 		fmt.Printf("ERROR : Location Count of %v Doesnt Match the expected count of %v! \n", currentLocationEntitiesCount, expectedLocationEntitiesCount)
@@ -33,7 +35,7 @@ func performCountAudit(session neo4j.SessionWithContext, ctx context.Context) {
 	}
 
 	//testagent count audit
-	expectedTestAgentEntitiesCount := expectedTestAgentEntitiesCount()
+	expectedTestAgentEntitiesCount := expectedCountArr[2]
 	currentTestAgentEntitiesCount := currentTestAgentEntitiesCount(session, ctx)
 	if expectedTestAgentEntitiesCount != currentTestAgentEntitiesCount {
 		fmt.Printf("ERROR : TestAgent Count of %v Doesnt Match the expected count of %v! \n", currentTestAgentEntitiesCount, expectedTestAgentEntitiesCount)
@@ -44,7 +46,7 @@ func performCountAudit(session neo4j.SessionWithContext, ctx context.Context) {
 	}
 
 	//testagenthost count audit
-	expectedTestAgentHostEntitiesCount := expectedTestAgentHostEntitiesCount()
+	expectedTestAgentHostEntitiesCount := expectedCountArr[3]
 	currentTestAgentHostEntitiesCount := currentTestAgentHostEntitiesCount(session, ctx)
 	if expectedTestAgentHostEntitiesCount != currentTestAgentHostEntitiesCount {
 		fmt.Printf("ERROR : TestAgentHost Count of %v Doesnt Match the expected count of %v! \n", currentTestAgentHostEntitiesCount, expectedTestAgentHostEntitiesCount)
@@ -55,20 +57,54 @@ func performCountAudit(session neo4j.SessionWithContext, ctx context.Context) {
 	}
 }
 
-func expectedNodeEntitiesCount() int {
-	return 50
-}
+func expectedEntitiesCount() []int {
+	nodeRowCount := 0
+	locationRowCount := 0
+	testagentRowCount := 0
+	testagenthostRowCount := 0
+	f, err := excelize.OpenFile("READY_standard_dish_deployment_flavor1_v1.xlsx")
+	if err != nil {
+		fmt.Println(err)
+		return []int{0, 0, 0, 0}
+	}
+	defer func() {
+		//Close the spreadsheet
+		if err := f.Close(); err != nil {
+			fmt.Println(err)
+		}
+	}()
 
-func expectedLocationEntitiesCount() int {
-	return 18
-}
-
-func expectedTestAgentEntitiesCount() int {
-	return 20
-}
-
-func expectedTestAgentHostEntitiesCount() int {
-	return 14
+	for _, sheet := range f.GetSheetList() {
+		entityType, err := f.GetCellValue(sheet, "A2")
+		if err != nil {
+			fmt.Println(err)
+		}
+		rows, err := f.GetRows(sheet)
+		if err != nil {
+			fmt.Println(err)
+			return []int{0, 0, 0, 0}
+		}
+		switch entityType {
+		case "NODE":
+			nodeRowCount += (len(rows) - 1)
+		case "LOCATION":
+			//fmt.Println("XXXXXXXXXXXXXXXXXXXXXXXXXXX")
+			//fmt.Println(rows, " AND ", locationRowCount)
+			locationRowCount += (len(rows) - 1)
+			//fmt.Println(rows, " AND ", locationRowCount)
+			//fmt.Println("XXXXXXXXXXXXXXXXXXXXXXXXXXX")
+		case "TESTAGENT":
+			testagentRowCount += (len(rows) - 1)
+		case "TESTAGENTHOST":
+			testagenthostRowCount += (len(rows) - 1)
+		}
+	}
+	//fmt.Println("node count: ", nodeRowCount)
+	//fmt.Println("location count: ", locationRowCount)
+	//fmt.Println("test agent count: ", testagentRowCount)
+	//fmt.Println("test agent host count: ", testagenthostRowCount)
+	resArr := []int{nodeRowCount, locationRowCount, testagentRowCount, testagenthostRowCount}
+	return resArr
 }
 
 func currentNodeEntitiesCount(session neo4j.SessionWithContext, ctx context.Context) int {
